@@ -1,0 +1,51 @@
+diff -ruN linux-4.6/fs/exec.c uksm-0.1.2.4-beta-linux-4.6/fs/exec.c
+--- linux-4.6/fs/exec.c	2016-05-16 06:43:13.000000000 +0800
++++ uksm-0.1.2.4-beta-linux-4.6/fs/exec.c	2016-05-23 20:48:38.354575309 +0800
+@@ -19,7 +19,7 @@
+  * current->executable is only used by the procfs.  This allows a dispatch
+  * table to check for several different types  of binary formats.  We keep
+  * trying until we recognize the file or we run out of supported binary
+- * formats. 
++ * formats.
+  */
+ 
+ #include <linux/slab.h>
+@@ -56,6 +56,7 @@
+ #include <linux/pipe_fs_i.h>
+ #include <linux/oom.h>
+ #include <linux/compat.h>
++#include <linux/ksm.h>
+ #include <linux/vmalloc.h>
+ 
+ #include <asm/uaccess.h>
+@@ -1258,6 +1259,7 @@
+ 	/* An exec changes our domain. We are no longer part of the thread
+ 	   group */
+ 	current->self_exec_id++;
++
+ 	flush_signal_handlers(current, 0);
+ 	do_close_on_exec(current->files);
+ }
+diff -ruN linux-4.6/fs/proc/meminfo.c uksm-0.1.2.4-beta-linux-4.6/fs/proc/meminfo.c
+--- linux-4.6/fs/proc/meminfo.c	2016-05-16 06:43:13.000000000 +0800
++++ uksm-0.1.2.4-beta-linux-4.6/fs/proc/meminfo.c	2016-05-23 20:09:16.065570208 +0800
+@@ -89,6 +89,9 @@
+ 		"SUnreclaim:     %8lu kB\n"
+ 		"KernelStack:    %8lu kB\n"
+ 		"PageTables:     %8lu kB\n"
++#ifdef CONFIG_UKSM
++		"KsmZeroPages:   %8lu kB\n"
++#endif
+ #ifdef CONFIG_QUICKLIST
+ 		"Quicklists:     %8lu kB\n"
+ #endif
+@@ -147,6 +150,9 @@
+ 		K(global_page_state(NR_SLAB_UNRECLAIMABLE)),
+ 		global_page_state(NR_KERNEL_STACK) * THREAD_SIZE / 1024,
+ 		K(global_page_state(NR_PAGETABLE)),
++#ifdef CONFIG_UKSM
++		K(global_page_state(NR_UKSM_ZERO_PAGES)),
++#endif
+ #ifdef CONFIG_QUICKLIST
+ 		K(quicklist_total_size()),
+ #endif

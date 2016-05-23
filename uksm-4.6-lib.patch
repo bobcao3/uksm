@@ -1,0 +1,728 @@
+diff -ruN linux-4.6/lib/Makefile uksm-0.1.2.4-beta-linux-4.6/lib/Makefile
+--- linux-4.6/lib/Makefile	2016-05-16 06:43:13.000000000 +0800
++++ uksm-0.1.2.4-beta-linux-4.6/lib/Makefile	2016-05-23 20:09:16.065570208 +0800
+@@ -20,7 +20,7 @@
+ KCOV_INSTRUMENT_hweight.o := n
+ 
+ lib-y := ctype.o string.o vsprintf.o cmdline.o \
+-	 rbtree.o radix-tree.o dump_stack.o timerqueue.o\
++	 rbtree.o radix-tree.o sradix-tree.o dump_stack.o timerqueue.o\
+ 	 idr.o int_sqrt.o extable.o \
+ 	 sha1.o md5.o irq_regs.o argv_split.o \
+ 	 proportions.o flex_proportions.o ratelimit.o show_mem.o \
+diff -ruN linux-4.6/lib/Makefile.orig uksm-0.1.2.4-beta-linux-4.6/lib/Makefile.orig
+--- linux-4.6/lib/Makefile.orig	1970-01-01 08:00:00.000000000 +0800
++++ uksm-0.1.2.4-beta-linux-4.6/lib/Makefile.orig	2016-05-16 06:43:13.000000000 +0800
+@@ -0,0 +1,232 @@
++#
++# Makefile for some libs needed in the kernel.
++#
++
++ifdef CONFIG_FUNCTION_TRACER
++ORIG_CFLAGS := $(KBUILD_CFLAGS)
++KBUILD_CFLAGS = $(subst $(CC_FLAGS_FTRACE),,$(ORIG_CFLAGS))
++endif
++
++# These files are disabled because they produce lots of non-interesting and/or
++# flaky coverage that is not a function of syscall inputs. For example,
++# rbtree can be global and individual rotations don't correlate with inputs.
++KCOV_INSTRUMENT_string.o := n
++KCOV_INSTRUMENT_rbtree.o := n
++KCOV_INSTRUMENT_list_debug.o := n
++KCOV_INSTRUMENT_debugobjects.o := n
++KCOV_INSTRUMENT_dynamic_debug.o := n
++# Kernel does not boot if we instrument this file as it uses custom calling
++# convention (see CONFIG_ARCH_HWEIGHT_CFLAGS).
++KCOV_INSTRUMENT_hweight.o := n
++
++lib-y := ctype.o string.o vsprintf.o cmdline.o \
++	 rbtree.o radix-tree.o dump_stack.o timerqueue.o\
++	 idr.o int_sqrt.o extable.o \
++	 sha1.o md5.o irq_regs.o argv_split.o \
++	 proportions.o flex_proportions.o ratelimit.o show_mem.o \
++	 is_single_threaded.o plist.o decompress.o kobject_uevent.o \
++	 earlycpio.o seq_buf.o nmi_backtrace.o
++
++obj-$(CONFIG_ARCH_HAS_DEBUG_STRICT_USER_COPY_CHECKS) += usercopy.o
++lib-$(CONFIG_MMU) += ioremap.o
++lib-$(CONFIG_SMP) += cpumask.o
++lib-$(CONFIG_HAS_DMA) += dma-noop.o
++
++lib-y	+= kobject.o klist.o
++obj-y	+= lockref.o
++
++obj-y += bcd.o div64.o sort.o parser.o halfmd4.o debug_locks.o random32.o \
++	 bust_spinlocks.o kasprintf.o bitmap.o scatterlist.o \
++	 gcd.o lcm.o list_sort.o uuid.o flex_array.o iov_iter.o clz_ctz.o \
++	 bsearch.o find_bit.o llist.o memweight.o kfifo.o \
++	 percpu-refcount.o percpu_ida.o rhashtable.o reciprocal_div.o \
++	 once.o
++obj-y += string_helpers.o
++obj-$(CONFIG_TEST_STRING_HELPERS) += test-string_helpers.o
++obj-y += hexdump.o
++obj-$(CONFIG_TEST_HEXDUMP) += test_hexdump.o
++obj-y += kstrtox.o
++obj-$(CONFIG_TEST_BPF) += test_bpf.o
++obj-$(CONFIG_TEST_FIRMWARE) += test_firmware.o
++obj-$(CONFIG_TEST_KASAN) += test_kasan.o
++obj-$(CONFIG_TEST_KSTRTOX) += test-kstrtox.o
++obj-$(CONFIG_TEST_LKM) += test_module.o
++obj-$(CONFIG_TEST_RHASHTABLE) += test_rhashtable.o
++obj-$(CONFIG_TEST_USER_COPY) += test_user_copy.o
++obj-$(CONFIG_TEST_STATIC_KEYS) += test_static_keys.o
++obj-$(CONFIG_TEST_STATIC_KEYS) += test_static_key_base.o
++obj-$(CONFIG_TEST_PRINTF) += test_printf.o
++obj-$(CONFIG_TEST_BITMAP) += test_bitmap.o
++
++ifeq ($(CONFIG_DEBUG_KOBJECT),y)
++CFLAGS_kobject.o += -DDEBUG
++CFLAGS_kobject_uevent.o += -DDEBUG
++endif
++
++obj-$(CONFIG_DEBUG_INFO_REDUCED) += debug_info.o
++CFLAGS_debug_info.o += $(call cc-option, -femit-struct-debug-detailed=any)
++
++obj-$(CONFIG_GENERIC_IOMAP) += iomap.o
++obj-$(CONFIG_GENERIC_PCI_IOMAP) += pci_iomap.o
++obj-$(CONFIG_HAS_IOMEM) += iomap_copy.o devres.o
++obj-$(CONFIG_CHECK_SIGNATURE) += check_signature.o
++obj-$(CONFIG_DEBUG_LOCKING_API_SELFTESTS) += locking-selftest.o
++
++GCOV_PROFILE_hweight.o := n
++CFLAGS_hweight.o = $(subst $(quote),,$(CONFIG_ARCH_HWEIGHT_CFLAGS))
++obj-$(CONFIG_GENERIC_HWEIGHT) += hweight.o
++
++obj-$(CONFIG_BTREE) += btree.o
++obj-$(CONFIG_INTERVAL_TREE) += interval_tree.o
++obj-$(CONFIG_ASSOCIATIVE_ARRAY) += assoc_array.o
++obj-$(CONFIG_DEBUG_PREEMPT) += smp_processor_id.o
++obj-$(CONFIG_DEBUG_LIST) += list_debug.o
++obj-$(CONFIG_DEBUG_OBJECTS) += debugobjects.o
++
++ifneq ($(CONFIG_HAVE_DEC_LOCK),y)
++  lib-y += dec_and_lock.o
++endif
++
++obj-$(CONFIG_BITREVERSE) += bitrev.o
++obj-$(CONFIG_RATIONAL)	+= rational.o
++obj-$(CONFIG_CRC_CCITT)	+= crc-ccitt.o
++obj-$(CONFIG_CRC16)	+= crc16.o
++obj-$(CONFIG_CRC_T10DIF)+= crc-t10dif.o
++obj-$(CONFIG_CRC_ITU_T)	+= crc-itu-t.o
++obj-$(CONFIG_CRC32)	+= crc32.o
++obj-$(CONFIG_CRC7)	+= crc7.o
++obj-$(CONFIG_LIBCRC32C)	+= libcrc32c.o
++obj-$(CONFIG_CRC8)	+= crc8.o
++obj-$(CONFIG_GENERIC_ALLOCATOR) += genalloc.o
++
++obj-$(CONFIG_842_COMPRESS) += 842/
++obj-$(CONFIG_842_DECOMPRESS) += 842/
++obj-$(CONFIG_ZLIB_INFLATE) += zlib_inflate/
++obj-$(CONFIG_ZLIB_DEFLATE) += zlib_deflate/
++obj-$(CONFIG_REED_SOLOMON) += reed_solomon/
++obj-$(CONFIG_BCH) += bch.o
++obj-$(CONFIG_LZO_COMPRESS) += lzo/
++obj-$(CONFIG_LZO_DECOMPRESS) += lzo/
++obj-$(CONFIG_LZ4_COMPRESS) += lz4/
++obj-$(CONFIG_LZ4HC_COMPRESS) += lz4/
++obj-$(CONFIG_LZ4_DECOMPRESS) += lz4/
++obj-$(CONFIG_XZ_DEC) += xz/
++obj-$(CONFIG_RAID6_PQ) += raid6/
++
++lib-$(CONFIG_DECOMPRESS_GZIP) += decompress_inflate.o
++lib-$(CONFIG_DECOMPRESS_BZIP2) += decompress_bunzip2.o
++lib-$(CONFIG_DECOMPRESS_LZMA) += decompress_unlzma.o
++lib-$(CONFIG_DECOMPRESS_XZ) += decompress_unxz.o
++lib-$(CONFIG_DECOMPRESS_LZO) += decompress_unlzo.o
++lib-$(CONFIG_DECOMPRESS_LZ4) += decompress_unlz4.o
++
++obj-$(CONFIG_TEXTSEARCH) += textsearch.o
++obj-$(CONFIG_TEXTSEARCH_KMP) += ts_kmp.o
++obj-$(CONFIG_TEXTSEARCH_BM) += ts_bm.o
++obj-$(CONFIG_TEXTSEARCH_FSM) += ts_fsm.o
++obj-$(CONFIG_SMP) += percpu_counter.o
++obj-$(CONFIG_AUDIT_GENERIC) += audit.o
++obj-$(CONFIG_AUDIT_COMPAT_GENERIC) += compat_audit.o
++
++obj-$(CONFIG_SWIOTLB) += swiotlb.o
++obj-$(CONFIG_IOMMU_HELPER) += iommu-helper.o iommu-common.o
++obj-$(CONFIG_FAULT_INJECTION) += fault-inject.o
++obj-$(CONFIG_NOTIFIER_ERROR_INJECTION) += notifier-error-inject.o
++obj-$(CONFIG_CPU_NOTIFIER_ERROR_INJECT) += cpu-notifier-error-inject.o
++obj-$(CONFIG_PM_NOTIFIER_ERROR_INJECT) += pm-notifier-error-inject.o
++obj-$(CONFIG_NETDEV_NOTIFIER_ERROR_INJECT) += netdev-notifier-error-inject.o
++obj-$(CONFIG_MEMORY_NOTIFIER_ERROR_INJECT) += memory-notifier-error-inject.o
++obj-$(CONFIG_OF_RECONFIG_NOTIFIER_ERROR_INJECT) += \
++	of-reconfig-notifier-error-inject.o
++
++lib-$(CONFIG_GENERIC_BUG) += bug.o
++
++obj-$(CONFIG_HAVE_ARCH_TRACEHOOK) += syscall.o
++
++obj-$(CONFIG_DYNAMIC_DEBUG) += dynamic_debug.o
++
++obj-$(CONFIG_NLATTR) += nlattr.o
++
++obj-$(CONFIG_LRU_CACHE) += lru_cache.o
++
++obj-$(CONFIG_DMA_API_DEBUG) += dma-debug.o
++
++obj-$(CONFIG_GENERIC_CSUM) += checksum.o
++
++obj-$(CONFIG_GENERIC_ATOMIC64) += atomic64.o
++
++obj-$(CONFIG_ATOMIC64_SELFTEST) += atomic64_test.o
++
++obj-$(CONFIG_CPU_RMAP) += cpu_rmap.o
++
++obj-$(CONFIG_CORDIC) += cordic.o
++
++obj-$(CONFIG_DQL) += dynamic_queue_limits.o
++
++obj-$(CONFIG_GLOB) += glob.o
++
++obj-$(CONFIG_MPILIB) += mpi/
++obj-$(CONFIG_SIGNATURE) += digsig.o
++
++lib-$(CONFIG_CLZ_TAB) += clz_tab.o
++
++obj-$(CONFIG_DDR) += jedec_ddr_data.o
++
++obj-$(CONFIG_GENERIC_STRNCPY_FROM_USER) += strncpy_from_user.o
++obj-$(CONFIG_GENERIC_STRNLEN_USER) += strnlen_user.o
++
++obj-$(CONFIG_GENERIC_NET_UTILS) += net_utils.o
++
++obj-$(CONFIG_SG_SPLIT) += sg_split.o
++obj-$(CONFIG_STMP_DEVICE) += stmp_device.o
++obj-$(CONFIG_IRQ_POLL) += irq_poll.o
++
++obj-$(CONFIG_STACKDEPOT) += stackdepot.o
++KASAN_SANITIZE_stackdepot.o := n
++
++libfdt_files = fdt.o fdt_ro.o fdt_wip.o fdt_rw.o fdt_sw.o fdt_strerror.o \
++	       fdt_empty_tree.o
++$(foreach file, $(libfdt_files), \
++	$(eval CFLAGS_$(file) = -I$(src)/../scripts/dtc/libfdt))
++lib-$(CONFIG_LIBFDT) += $(libfdt_files)
++
++obj-$(CONFIG_RBTREE_TEST) += rbtree_test.o
++obj-$(CONFIG_INTERVAL_TREE_TEST) += interval_tree_test.o
++
++obj-$(CONFIG_PERCPU_TEST) += percpu_test.o
++
++obj-$(CONFIG_ASN1) += asn1_decoder.o
++
++obj-$(CONFIG_FONT_SUPPORT) += fonts/
++
++hostprogs-y	:= gen_crc32table
++clean-files	:= crc32table.h
++
++$(obj)/crc32.o: $(obj)/crc32table.h
++
++quiet_cmd_crc32 = GEN     $@
++      cmd_crc32 = $< > $@
++
++$(obj)/crc32table.h: $(obj)/gen_crc32table
++	$(call cmd,crc32)
++
++#
++# Build a fast OID lookip registry from include/linux/oid_registry.h
++#
++obj-$(CONFIG_OID_REGISTRY) += oid_registry.o
++
++$(obj)/oid_registry.o: $(obj)/oid_registry_data.c
++
++$(obj)/oid_registry_data.c: $(srctree)/include/linux/oid_registry.h \
++			    $(src)/build_OID_registry
++	$(call cmd,build_OID_registry)
++
++quiet_cmd_build_OID_registry = GEN     $@
++      cmd_build_OID_registry = perl $(srctree)/$(src)/build_OID_registry $< $@
++
++clean-files	+= oid_registry_data.c
++
++obj-$(CONFIG_UCS2_STRING) += ucs2_string.o
++obj-$(CONFIG_UBSAN) += ubsan.o
++
++UBSAN_SANITIZE_ubsan.o := n
+diff -ruN linux-4.6/lib/sradix-tree.c uksm-0.1.2.4-beta-linux-4.6/lib/sradix-tree.c
+--- linux-4.6/lib/sradix-tree.c	1970-01-01 08:00:00.000000000 +0800
++++ uksm-0.1.2.4-beta-linux-4.6/lib/sradix-tree.c	2016-05-23 20:09:16.065570208 +0800
+@@ -0,0 +1,476 @@
++#include <linux/errno.h>
++#include <linux/mm.h>
++#include <linux/mman.h>
++#include <linux/spinlock.h>
++#include <linux/slab.h>
++#include <linux/gcd.h>
++#include <linux/sradix-tree.h>
++
++static inline int sradix_node_full(struct sradix_tree_root *root, struct sradix_tree_node *node)
++{
++	return node->fulls == root->stores_size || 
++		(node->height == 1 && node->count == root->stores_size);
++}
++
++/*
++ *	Extend a sradix tree so it can store key @index.
++ */
++static int sradix_tree_extend(struct sradix_tree_root *root, unsigned long index)
++{
++	struct sradix_tree_node *node;
++	unsigned int height;
++
++	if (unlikely(root->rnode == NULL)) {
++		if (!(node = root->alloc()))
++			return -ENOMEM;
++
++		node->height = 1;
++		root->rnode = node;
++		root->height = 1;
++	}
++
++	/* Figure out what the height should be.  */
++	height = root->height;
++	index >>= root->shift * height;
++
++	while (index) {
++		index >>= root->shift;
++		height++;
++	}
++
++	while (height > root->height) {
++		unsigned int newheight;
++		if (!(node = root->alloc()))
++			return -ENOMEM;
++
++		/* Increase the height.  */
++		node->stores[0] = root->rnode;
++		root->rnode->parent = node;
++		if (root->extend)
++			root->extend(node, root->rnode);
++
++		newheight = root->height + 1;
++		node->height = newheight;
++		node->count = 1;
++		if (sradix_node_full(root, root->rnode))
++			node->fulls = 1;
++
++		root->rnode = node;
++		root->height = newheight;
++	}
++
++	return 0;
++}
++
++/*
++ * Search the next item from the current node, that is not NULL
++ * and can satify root->iter().
++ */
++void *sradix_tree_next(struct sradix_tree_root *root,
++		       struct sradix_tree_node *node, unsigned long index,
++		       int (*iter)(void *item, unsigned long height))
++{
++	unsigned long offset;
++	void *item;
++
++	if (unlikely(node == NULL)) {
++		node = root->rnode;
++		for (offset = 0; offset < root->stores_size; offset++) {
++			item = node->stores[offset];
++			if (item && (!iter || iter(item, node->height)))
++				break;
++		}
++
++		if (unlikely(offset >= root->stores_size))
++			return NULL;
++
++		if (node->height == 1)
++			return item;
++		else
++			goto go_down;
++	}
++
++	while (node) {
++		offset = (index & root->mask) + 1;					
++		for (;offset < root->stores_size; offset++) {
++			item = node->stores[offset];
++			if (item && (!iter || iter(item, node->height)))
++				break;
++		}
++
++		if (offset < root->stores_size)
++			break;
++
++		node = node->parent;
++		index >>= root->shift;
++	}
++
++	if (!node)
++		return NULL;
++
++	while (node->height > 1) {
++go_down:
++		node = item;
++		for (offset = 0; offset < root->stores_size; offset++) {
++			item = node->stores[offset];
++			if (item && (!iter || iter(item, node->height)))
++				break;
++		}
++
++		if (unlikely(offset >= root->stores_size))
++			return NULL;
++	}
++
++	BUG_ON(offset > root->stores_size);
++
++	return item;
++}
++
++/*
++ * Blindly insert the item to the tree. Typically, we reuse the
++ * first empty store item.
++ */
++int sradix_tree_enter(struct sradix_tree_root *root, void **item, int num)
++{
++	unsigned long index;
++	unsigned int height;
++	struct sradix_tree_node *node, *tmp = NULL;
++	int offset, offset_saved;
++	void **store = NULL;
++	int error, i, j, shift;
++
++go_on:
++	index = root->min;
++
++	if (root->enter_node && !sradix_node_full(root, root->enter_node)) {
++		node = root->enter_node;
++		BUG_ON((index >> (root->shift * root->height)));
++	} else {
++		node = root->rnode;
++		if (node == NULL || (index >> (root->shift * root->height))
++		    || sradix_node_full(root, node)) {
++			error = sradix_tree_extend(root, index);
++			if (error)
++				return error;
++
++			node = root->rnode;
++		}
++	}
++
++
++	height = node->height;
++	shift = (height - 1) * root->shift;
++	offset = (index >> shift) & root->mask;
++	while (shift > 0) {
++		offset_saved = offset;
++		for (; offset < root->stores_size; offset++) {
++			store = &node->stores[offset];
++			tmp = *store;
++
++			if (!tmp || !sradix_node_full(root, tmp))
++				break;
++		}
++		BUG_ON(offset >= root->stores_size);
++
++		if (offset != offset_saved) {
++			index += (offset - offset_saved) << shift;
++			index &= ~((1UL << shift) - 1);
++		}
++
++		if (!tmp) {
++			if (!(tmp = root->alloc()))
++				return -ENOMEM;
++
++			tmp->height = shift / root->shift;
++			*store = tmp;
++			tmp->parent = node;
++			node->count++;
++//			if (root->extend)
++//				root->extend(node, tmp);
++		}
++
++		node = tmp;
++		shift -= root->shift;
++		offset = (index >> shift) & root->mask;
++	}
++
++	BUG_ON(node->height != 1);
++
++
++	store = &node->stores[offset];
++	for (i = 0, j = 0;
++	      j < root->stores_size - node->count && 
++	      i < root->stores_size - offset && j < num; i++) {
++		if (!store[i]) {
++			store[i] = item[j];
++			if (root->assign)
++				root->assign(node, index + i, item[j]);
++			j++;
++		}
++	}
++
++	node->count += j;
++	root->num += j;
++	num -= j;
++
++	while (sradix_node_full(root, node)) {
++		node = node->parent;
++		if (!node)
++			break;
++
++		node->fulls++;
++	}
++
++	if (unlikely(!node)) {
++		/* All nodes are full */
++		root->min = 1 << (root->height * root->shift);
++		root->enter_node = NULL;
++	} else {
++		root->min = index + i - 1;
++		root->min |= (1UL << (node->height - 1)) - 1;
++		root->min++;
++		root->enter_node = node;
++	}
++
++	if (num) {
++		item += j;
++		goto go_on;
++	}
++
++	return 0;
++}
++
++
++/**
++ *	sradix_tree_shrink    -    shrink height of a sradix tree to minimal
++ *      @root		sradix tree root
++ *  
++ */
++static inline void sradix_tree_shrink(struct sradix_tree_root *root)
++{
++	/* try to shrink tree height */
++	while (root->height > 1) {
++		struct sradix_tree_node *to_free = root->rnode;
++
++		/*
++		 * The candidate node has more than one child, or its child
++		 * is not at the leftmost store, we cannot shrink.
++		 */
++		if (to_free->count != 1 || !to_free->stores[0])
++			break;
++
++		root->rnode = to_free->stores[0];
++		root->rnode->parent = NULL;
++		root->height--;
++		if (unlikely(root->enter_node == to_free)) {
++			root->enter_node = NULL;
++		}
++		root->free(to_free);
++	}
++}
++
++/*
++ * Del the item on the known leaf node and index
++ */
++void sradix_tree_delete_from_leaf(struct sradix_tree_root *root, 
++				  struct sradix_tree_node *node, unsigned long index)
++{
++	unsigned int offset;
++	struct sradix_tree_node *start, *end;
++
++	BUG_ON(node->height != 1);
++
++	start = node;
++	while (node && !(--node->count))
++		node = node->parent;
++
++	end = node;
++	if (!node) {
++		root->rnode = NULL;
++		root->height = 0;
++		root->min = 0;
++		root->num = 0;
++		root->enter_node = NULL;
++	} else {
++		offset = (index >> (root->shift * (node->height - 1))) & root->mask;
++		if (root->rm)
++			root->rm(node, offset);
++		node->stores[offset] = NULL;
++		root->num--;
++		if (root->min > index) {
++			root->min = index;
++			root->enter_node = node;
++		}
++	}
++
++	if (start != end) {
++		do {
++			node = start;
++			start = start->parent;
++			if (unlikely(root->enter_node == node))
++				root->enter_node = end;
++			root->free(node);
++		} while (start != end);
++
++		/*
++		 * Note that shrink may free "end", so enter_node still need to
++		 * be checked inside.
++		 */
++		sradix_tree_shrink(root);
++	} else if (node->count == root->stores_size - 1) {
++		/* It WAS a full leaf node. Update the ancestors */
++		node = node->parent;
++		while (node) {
++			node->fulls--;
++			if (node->fulls != root->stores_size - 1)
++				break;
++
++			node = node->parent;
++		}
++	}
++}
++
++void *sradix_tree_lookup(struct sradix_tree_root *root, unsigned long index)
++{
++	unsigned int height, offset;
++	struct sradix_tree_node *node;
++	int shift;
++
++	node = root->rnode;
++	if (node == NULL || (index >> (root->shift * root->height)))
++		return NULL;
++
++	height = root->height;
++	shift = (height - 1) * root->shift;
++
++	do {
++		offset = (index >> shift) & root->mask;
++		node = node->stores[offset];
++		if (!node)
++			return NULL;
++
++		shift -= root->shift;
++	} while (shift >= 0);
++
++	return node;
++}
++
++/*
++ * Return the item if it exists, otherwise create it in place
++ * and return the created item.
++ */
++void *sradix_tree_lookup_create(struct sradix_tree_root *root, 
++			unsigned long index, void *(*item_alloc)(void))
++{
++	unsigned int height, offset;
++	struct sradix_tree_node *node, *tmp;
++	void *item;
++	int shift, error;
++
++	if (root->rnode == NULL || (index >> (root->shift * root->height))) {
++		if (item_alloc) {
++			error = sradix_tree_extend(root, index);
++			if (error)
++				return NULL;
++		} else {
++			return NULL;
++		}
++	}
++
++	node = root->rnode;
++	height = root->height;
++	shift = (height - 1) * root->shift;
++
++	do {
++		offset = (index >> shift) & root->mask;
++		if (!node->stores[offset]) {
++			if (!(tmp = root->alloc()))
++				return NULL;
++
++			tmp->height = shift / root->shift;
++			node->stores[offset] = tmp;
++			tmp->parent = node;
++			node->count++;
++			node = tmp;
++		} else {
++			node = node->stores[offset];
++		}
++
++		shift -= root->shift;
++	} while (shift > 0);
++
++	BUG_ON(node->height != 1);
++	offset = index & root->mask;
++	if (node->stores[offset]) {
++		return node->stores[offset];
++	} else if (item_alloc) {
++		if (!(item = item_alloc()))
++			return NULL;
++
++		node->stores[offset] = item;
++
++		/*
++		 * NOTE: we do NOT call root->assign here, since this item is
++		 * newly created by us having no meaning. Caller can call this
++		 * if it's necessary to do so.
++		 */
++
++		node->count++;
++		root->num++;
++
++		while (sradix_node_full(root, node)) {
++			node = node->parent;
++			if (!node)
++				break;
++
++			node->fulls++;
++		}
++
++		if (unlikely(!node)) {
++			/* All nodes are full */
++			root->min = 1 << (root->height * root->shift);
++		} else {
++			if (root->min == index) {
++				root->min |= (1UL << (node->height - 1)) - 1;
++				root->min++;
++				root->enter_node = node;
++			}
++		}
++
++		return item;
++	} else {
++		return NULL;
++	}
++
++}
++
++int sradix_tree_delete(struct sradix_tree_root *root, unsigned long index)
++{
++	unsigned int height, offset;
++	struct sradix_tree_node *node;
++	int shift;
++
++	node = root->rnode;
++	if (node == NULL || (index >> (root->shift * root->height)))
++		return -ENOENT;
++
++	height = root->height;
++	shift = (height - 1) * root->shift;
++
++	do {
++		offset = (index >> shift) & root->mask;
++		node = node->stores[offset];
++		if (!node)
++			return -ENOENT;
++
++		shift -= root->shift;
++	} while (shift > 0);
++
++	offset = index & root->mask;
++	if (!node->stores[offset])
++		return -ENOENT;
++
++	sradix_tree_delete_from_leaf(root, node, index);
++
++	return 0;
++}
